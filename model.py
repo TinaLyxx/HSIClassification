@@ -6,7 +6,7 @@ import math
 from einops import rearrange, repeat
 
 from mamba_ssm import Mamba2
-import tree_generate
+from tree_generate import _C
 from timm.models.layers import trunc_normal_, DropPath
 
 from utils.util_mst import MinimumSpanningTree
@@ -19,7 +19,8 @@ class _BFS(Function):
     @staticmethod
     def forward(ctx, edge_index, max_adj_per_vertex, root):
         sorted_index, sorted_parent, sorted_child =\
-                tree_generate.bfs_forward(edge_index, max_adj_per_vertex, root)
+                _C.bfs_forward(edge_index, max_adj_per_vertex, root)
+        sorted_index -= 1
         return sorted_index, sorted_parent, sorted_child
 
 
@@ -60,15 +61,17 @@ def seq_generate(x, max_adj=4, if_pos_embed=True):
 
         if if_pos_embed:
             pos_embed = get_2d_sincos_pos_embed(C, H)
-            pos_embed = pos_embed.view(H, W, C)
-            pos_embed = pos_embed.unsqueeze(0).expand(B, -1, -1, -1) # (B,H,W,C)
+            pos_embed = torch.from_numpy(pos_embed)
+            pos_embed = pos_embed.unsqueeze(0).expand(B, -1, -1) # (B,H*W,C)
+            pos_embed = pos_embed.to(x.device)
             x = x.permute(0, 2, 3, 1)
-            x = x + pos_embed
             x = rearrange(x, 'b h w c -> b (h w) c')
+            x = x + pos_embed
         else:
             x = x.permute(0, 2, 3, 1)
             x = rearrange(x, 'b h w c -> b (h w) c')
 
+        sorted_index = sorted_index.to(torch.int64)
         x_sorted = x.gather(1, sorted_index.unsqueeze(-1).expand(B, H*W, C))
 
         return sorted_index, x_sorted
@@ -129,16 +132,17 @@ class Spa_DownsampleLayer(nn.Module):
         return x,sorted_index
         
 class SSD_Block(nn.Module):
-    def __init__(self, channels, seq_len, drop_path=0.):
+    def __init__(self, channels, seq_len, hidden_len, spe_headdim, drop_path=0.):
         super(SSD_Block, self).__init__()
         self.spa_dim = channels
-        self.spe_dim = seq_len
+        self.spe_dim = hidden_len
         self.spa_mamba = Mamba2(
             # This module uses roughly 3 * expand * d_model^2 parameters
             d_model=self.spa_dim, # Model dimension d_model
             d_state=64,  # SSM state expansion factor
             d_conv=4,    # Local convolution width
             expand=2,    # Block expansion factor
+            headdim=16,
         )
         self.spe_mamba = Mamba2(
             # This module uses roughly 3 * expand * d_model^2 parameters
@@ -146,22 +150,36 @@ class SSD_Block(nn.Module):
             d_state=64,  # SSM state expansion factor
             d_conv=4,    # Local convolution width
             expand=2,    # Block expansion factor
+            headdim=spe_headdim,
         )
         self.spa_norm = nn.LayerNorm(channels)
-        self.spe_norm = nn.LayerNorm(seq_len)
+        self.spe_norm = nn.LayerNorm(hidden_len)
         self.drop_path = DropPath(drop_path) if drop_path > 0. \
             else nn.Identity()
+
+        self.linear1 = nn.Sequential(
+            nn.Linear(seq_len, hidden_len),
+            nn.GELU(),
+        )
+        self.linear2 = nn.Sequential(
+            nn.Linear(hidden_len, seq_len),
+            nn.GELU(),
+        )
+
 
     def forward(self, x):
         x_spa = self.spa_norm(x) # (B,L,C)
         x_spa = self.spa_mamba(x_spa)
-        x_spa = x_spa + self.drop_path(x)
+        x_spa = x + self.drop_path(x_spa)
 
         x_spe = x_spa.permute(0, 2, 1) # (B,C,L)
 
+        x_spe = self.linear1(x_spe)
         x_spe = self.spe_norm(x_spe)
         x_spe = self.drop_path(self.spe_mamba(x_spe))
+        x_spe = self.linear2(x_spe)
         x_spe = x_spe.permute(0, 2, 1)
+
         x_out = x_spe + x_spa
 
         return x_out
@@ -171,7 +189,9 @@ class Basic_Block_v1(nn.Module):
                  channels, 
                  depth, 
                  patch_size, 
-                 num_heads, 
+                 num_heads,
+                 hidden_len, 
+                 spe_headdim,
                  drop_path=0., 
                  spa_query_len=5,
                  downsample=True
@@ -183,6 +203,8 @@ class Basic_Block_v1(nn.Module):
             SSD_Block(
                 channels=channels, 
                 seq_len=patch_size**2,
+                hidden_len=hidden_len,
+                spe_headdim=spe_headdim,
                 drop_path=drop_path[i] if isinstance(drop_path, list) else drop_path,
                 )for i in range(depth)])
         self.spa_attention = Spa_Attention(channels, num_heads)
@@ -212,13 +234,15 @@ class Basic_Block_v1(nn.Module):
 
         if self.downsample is not None:
             x = self.downsample(x,sorted_index)
+            x = x.permute(0,3,1,2)
+        
 
         return x
     
 
 class Basic_Block_v2(nn.Module):
     def __init__(self, channels, patch_size, depth, num_heads, if_resize, drop_path=0.):
-        super(Basic_Block_v1, self).__init__()
+        super(Basic_Block_v2, self).__init__()
         self.seq_len = patch_size ** 2
         self.ssd_blocks = nn.ModuleList([
             SSD_Block(
@@ -237,6 +261,7 @@ class Basic_Block_v2(nn.Module):
         B, L, C = x.shape
         for i, blocks in enumerate(self.ssd_blocks):
             x = blocks(x)
+            print(f"Finish the block {i}")
         x = self.norm(x)
 
         x,sorted_i = self.spa_attention(x,sorted_index)
@@ -250,7 +275,7 @@ class Main_Model(nn.Module):
                  in_channels,
                  embed_dim=64,
                  num_classes=10,
-                 patch_size=17,
+                 patch_size=9,
                  group_num=4,
                  group_norm=True,
                  basic_version='v1',
@@ -258,6 +283,8 @@ class Main_Model(nn.Module):
                  drop_path_rate=0.2,
                  drop_path_type='linear',
                  num_head=8,
+                 hidden_len=[256, 64, 16],
+                 spe_headdim=[64,16,4],
                  spa_query_len=5,
                  head_typ='AP',
                  v2_if_resize = True,
@@ -286,6 +313,8 @@ class Main_Model(nn.Module):
                     depth=depths[i],
                     patch_size=self.patch_size,
                     num_heads=num_head,
+                    hidden_len=hidden_len[i],
+                    spe_headdim=spe_headdim[i],
                     drop_path=dpr[sum(depths[:i]):sum(depths[:i + 1])],
                     spa_query_len=spa_query_len-2*i,
                     downsample=(i < self.num_levels - 1)
@@ -306,13 +335,13 @@ class Main_Model(nn.Module):
                 self.levels.append(level)
         
         self.head = Head(embed_dim,
-                         num_classes,
+                         self.num_classes,
                          sequence_length=self.patch_size**2,
                          head=head_typ)
         
     def forward(self, x):
+        x = x.squeeze(1)
         x = self.patch_embed(x)
-
         if self.version == 'v1':
             for level in self.levels:
                 x = level(x)

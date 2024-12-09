@@ -51,13 +51,15 @@ def get_extensions():
     include_dirs = [extensions_dir]
     ext_modules = [
         extension(
-            "tree_generate",
+            "tree_generate._C",
             sources,
             include_dirs=include_dirs,
             define_macros=define_macros,
             extra_compile_args=extra_compile_args
         )
     ]
+    if not os.path.exists("tree_generate"):
+        os.makedirs("tree_generate")
     return ext_modules
 
 

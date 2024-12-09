@@ -37,7 +37,7 @@ class ClassificationHead(nn.Module):
 
 class FC_ClassificationHead(nn.Module):
     def __init__(self, input_dim, num_classes, sequence_length):
-        super(ClassificationHead, self).__init__()
+        super(FC_ClassificationHead, self).__init__()
         self.fc = nn.Linear(input_dim * sequence_length, num_classes)
 
     def forward(self, x):

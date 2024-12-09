@@ -21,7 +21,7 @@ _C.BASE = ['']
 # -----------------------------------------------------------------------------
 _C.DATA = CN()
 # Batch size for a single GPU, could be overwritten by command line argument
-_C.DATA.BATCH_SIZE = 128
+_C.DATA.BATCH_SIZE = 16
 # Path to dataset, could be overwritten by command line argument
 _C.DATA.DATA_PATH = '../datasets'
 # Dataset name
@@ -63,7 +63,7 @@ _C.MODEL.PRETRAINED = ''
 # Checkpoint to resume, could be overwritten by command line argument
 _C.MODEL.RESUME = ''
 # Number of classes, overwritten in data preparation
-_C.MODEL.NUM_CLASSES = 16
+_C.MODEL.NUM_CLASSES = 17
 # Dropout rate
 _C.MODEL.DROP_RATE = 0.0
 # Drop path rate
@@ -77,9 +77,11 @@ _C.MODEL.GROUP_NUM = 4
 _C.MODEL.GROUP_NORM = True
 _C.MODEL.DEPTHS = [2, 4, 2]
 _C.MODEL.ATTENTION_HEAD = 8
-_C.MODEL.SPA_QUERY_LEN = 7
+_C.MODEL.HIDDEN_LEN = [256, 64, 16]
+_C.MODEL.SPA_QUERY_LEN = 5
 _C.MODEL.HEAD_TYPE = "AP"
 _C.MODEL.V2_RESIZE = True
+_C.MODEL.SPE_HEAD_DIM = [64]
 
 
 
@@ -109,11 +111,11 @@ _C.MODEL.V2_RESIZE = True
 _C.TRAIN = CN()
 _C.TRAIN.START_EPOCH = 0
 _C.TRAIN.EPOCHS = 200
-_C.TRAIN.WARMUP_EPOCHS = 15
-_C.TRAIN.WEIGHT_DECAY = 0.05
-_C.TRAIN.BASE_LR = 5e-4
-_C.TRAIN.WARMUP_LR = 5e-7
-_C.TRAIN.MIN_LR = 5e-6
+_C.TRAIN.WARMUP_EPOCHS = 12
+_C.TRAIN.WEIGHT_DECAY = 5e-4
+_C.TRAIN.BASE_LR = 1e-3
+_C.TRAIN.WARMUP_LR = 1e-6
+_C.TRAIN.MIN_LR = 1e-5
 # Clip gradient norm
 # _C.TRAIN.CLIP_GRAD = 5.0
 # Auto resume from latest checkpoint
@@ -222,7 +224,7 @@ _C.TAG = 'default'
 _C.SAVE_FREQ = 1
 _C.SAVE_CKPT_NUM = 2
 # Frequency to logging info
-_C.PRINT_FREQ = 10
+_C.PRINT_FREQ = 1
 # eval freq
 _C.EVAL_FREQ = 1
 # Fixed random seed
@@ -304,7 +306,11 @@ def update_config(config, args):
     # set local rank for distributed training
     if hasattr(args, 'local_rank') and args.local_rank:
         config.LOCAL_RANK = args.local_rank
-
+    if hasattr(args, 'train_size') and args.train_size:
+        config.DATA.TRAIN_SIZE = args.train_size
+    if hasattr(args, 'test_size') and args.test_size:
+        config.DATA.TEST_SIZE = args.test_size
+        
     # output folder
     config.MODEL.NAME = args.cfg.split('/')[-1].replace('.yaml', '')
     config.OUTPUT = os.path.join(config.OUTPUT, config.MODEL.NAME)
@@ -312,7 +318,7 @@ def update_config(config, args):
 
     config.freeze()
 
-
+# priority _C < .yml < parser
 def get_config(args):
     """Get a yacs CfgNode object with default values."""
     # Return a clone so that the defaults will not be altered

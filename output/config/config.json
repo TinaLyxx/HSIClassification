@@ -1,0 +1,92 @@
+AUG:
+  FLIP: false
+  MIXTURE: false
+  MIXUP: 0.0
+  RADIATION: false
+BASE:
+- ''
+DATA:
+  BATCH_SIZE: 64
+  CENTER_PIXEL: true
+  CHANNELS: 200
+  DATASET: IP
+  DATA_PATH: datasets
+  IGNOR_LABELS:
+  - 0
+  INTERPOLATION: bicubic
+  NUM_WORKERS: 8
+  PATCH_SIZE: 17
+  PIN_MEMORY: true
+  SAMPLE_MODE: fixed
+  SUPERVISION: full
+  TEST_SIZE: 20
+  TRAIN_SIZE: 70
+EVAL_FREQ: 1
+EVAL_MODE: false
+LOCAL_RANK: 0
+MODEL:
+  ATTENTION_HEAD: 8
+  DEPTHS:
+  - 1
+  - 2
+  - 1
+  DROP_PATH_RATE: 0.1
+  DROP_PATH_TYPE: linear
+  DROP_RATE: 0.0
+  EMBED_DIMENSION: 64
+  GROUP_NORM: true
+  GROUP_NUM: 4
+  HEAD_TYPE: AP
+  HIDDEN_LEN:
+  - 256
+  - 64
+  - 16
+  LABEL_SMOOTHING: 0.0
+  NAME: config
+  NUM_CLASSES: 17
+  PRETRAINED: ''
+  RESUME: ''
+  SPA_QUERY_LEN: 5
+  SPE_HEAD_DIM:
+  - 64
+  - 16
+  - 4
+  TYPE: v1
+  V2_RESIZE: true
+N_RUNS: 1
+OUTPUT: output/config
+PRINT_FREQ: 1
+SAVE_CKPT_NUM: 1
+SAVE_FREQ: 1
+SEED: 0
+TAG: default
+TEST:
+  CROP: true
+  SEQUENTIAL: false
+  STRIDE: 1
+THROUGHPUT_MODE: false
+TRAIN:
+  AUTO_RESUME: true
+  BASE_LR: 0.001
+  EPOCHS: 200
+  LR_LAYER_DECAY: false
+  LR_LAYER_DECAY_RATIO: 0.875
+  LR_SCHEDULER:
+    DECAY_EPOCHS: 20
+    DECAY_RATE: 0.1
+    NAME: cosine
+  MIN_LR: 1.0e-05
+  OPTIMIZER:
+    BETAS:
+    - 0.9
+    - 0.999
+    DCN_LR_MUL: null
+    EPS: 1.0e-08
+    FREEZE_BACKBONE: null
+    MOMENTUM: 0.9
+    NAME: adamw
+    USE_ZERO: false
+  START_EPOCH: 0
+  WARMUP_EPOCHS: 15
+  WARMUP_LR: 1.0e-06
+  WEIGHT_DECAY: 0.0005

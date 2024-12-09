@@ -22,6 +22,8 @@ def build_model(config):
             depths=config.MODEL.DEPTHS,
             drop_path_rate=config.MODEL.DROP_PATH_RATE,
             num_head=config.MODEL.ATTENTION_HEAD,
+            hidden_len=config.MODEL.HIDDEN_LEN,
+            spe_headdim=config.MODEL.SPE_HEAD_DIM,
             spa_query_len=config.MODEL.SPA_QUERY_LEN,
             head_typ=config.MODEL.HEAD_TYPE,
             v2_if_resize=config.MODEL.V2_RESIZE
@@ -34,13 +36,13 @@ def build_model(config):
 
 def build_dataset(config):
     dataset = config.DATA.DATASET
-    test_size = config.DATA.TEST_SIZE
+    val_size = config.DATA.TEST_SIZE
     train_size = config.DATA.TRAIN_SIZE
     sample_mode = config.DATA.SAMPLE_MODE
 
     image, label,_,_= load_data(dataset, config)
-    train_label, test_label = sample_gt(label, 1-test_size, sample_mode)
-    train_label, val_label = sample_gt(train_label, train_size, sample_mode)
+    train_label, test_label = sample_gt(label, train_size, sample_mode)
+    val_label, train_label = sample_gt(train_label, val_size, sample_mode)
 
     train_dataset = HyperX(image, train_label, config)
     val_dataset = HyperX(image, val_label, config)
@@ -103,6 +105,28 @@ def build_loader(config):
         persistent_workers=True) if dataset_test is not None else None
     
     return dataset_train, dataset_val, dataset_test, test_label, data_loader_train, data_loader_val, data_loader_test
+
+def build_loader_single(config):
+    dataset_train, dataset_val, dataset_test, test_label = build_dataset(config)
+
+    data_loader_train = torch.utils.data.DataLoader(
+        dataset_train,
+        batch_size=config.DATA.BATCH_SIZE,
+        shuffle=True) if dataset_train is not None else None
+
+    data_loader_val = torch.utils.data.DataLoader(
+        dataset_val,
+        batch_size=config.DATA.BATCH_SIZE,
+        shuffle=False) if dataset_val is not None else None
+
+    data_loader_test = torch.utils.data.DataLoader(
+        dataset_test,
+        batch_size=config.DATA.BATCH_SIZE,
+        shuffle=False) if dataset_test is not None else None
+    
+    return dataset_train, dataset_val, dataset_test, test_label, data_loader_train, data_loader_val, data_loader_test
+
+    
 
 
 

@@ -66,7 +66,7 @@ def save_checkpoint(config,
     save_state = {
         'model': model.state_dict(),
         'optimizer': optimizer.state_dict(),
-        'lr_scheduler': lr_scheduler.state_dict(),
+        # 'lr_scheduler': lr_scheduler.state_dict(),
         'max_accuracy': max_accuracy,
         'epoch': epoch,
         'config': config
@@ -91,11 +91,18 @@ def save_checkpoint(config,
     torch.save(save_state, save_path)
     logger.info(f'{save_path} saved !!!')
 
-    if dist.get_rank() == 0 and isinstance(epoch, int):
+    # if dist.get_rank() == 0 and isinstance(epoch, int):
+    #     to_del = epoch - config.SAVE_CKPT_NUM * config.SAVE_FREQ
+    #     old_ckpt = os.path.join(config.OUTPUT, f'ckpt_epoch_{to_del}.pth')
+    #     if os.path.exists(old_ckpt):
+    #         os.remove(old_ckpt)
+
+    if isinstance(epoch, int):
         to_del = epoch - config.SAVE_CKPT_NUM * config.SAVE_FREQ
         old_ckpt = os.path.join(config.OUTPUT, f'ckpt_epoch_{to_del}.pth')
         if os.path.exists(old_ckpt):
             os.remove(old_ckpt)
+    
 
 @functools.lru_cache()
 def create_logger(output_dir, dist_rank=0, name=''):
@@ -292,6 +299,8 @@ def metrics(prediction, target, ignored_labels=[], n_classes=None):
     target = target[ignored_mask]
     prediction = prediction[ignored_mask]
 
+    print(f"target list: {target}")
+    print(f"prediction list: {prediction}")
     results = {}
 
     n_classes = np.max(target) + 1 if n_classes is None else n_classes
@@ -355,17 +364,21 @@ def convert_to_color(arr_2d, palette=None):
 
 
 def save_predictions(pred, gt=None, caption=""):
+    results_dir = './results'
+    if not os.path.exists(results_dir):
+        os.makedirs(results_dir)
+
     if gt is None:
         image = Image.fromarray(pred)
-        path = "./results/" + caption
+        path = os.path.join(results_dir, caption)
         image.save(path)
     else:
         pred = Image.fromarray(pred)
-        pred_path = "./results/" + caption
+        pred_path = os.path.join(results_dir, caption)
         pred.save(pred_path)
 
         gt = Image.fromarray(gt)
-        gt_path = "./results/gt_" + caption
+        gt_path = os.path.join(results_dir, f"gt_{caption}")
         gt.save(gt_path)
 
 

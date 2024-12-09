@@ -1,0 +1,9 @@
+setup.py
+/project/6079336/y369liu/HSI/HSIClassification/third_party/TreeGen/tree_generate/csrc/bfs.cu
+/project/6079336/y369liu/HSI/HSIClassification/third_party/TreeGen/tree_generate/csrc/boruvka.cu
+/project/6079336/y369liu/HSI/HSIClassification/third_party/TreeGen/tree_generate/csrc/mst.cu
+/project/6079336/y369liu/HSI/HSIClassification/third_party/TreeGen/tree_generate/csrc/vision.cpp
+tree_generate.egg-info/PKG-INFO
+tree_generate.egg-info/SOURCES.txt
+tree_generate.egg-info/dependency_links.txt
+tree_generate.egg-info/top_level.txt

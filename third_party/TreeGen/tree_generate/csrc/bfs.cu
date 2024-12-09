@@ -38,7 +38,6 @@ __global__ void adj_vec_kernel(
     adj_vec     += batch_idx * vertex_count * max_adj_per_node;
     adj_vec_len += batch_idx * vertex_count;
     
-    // printf("done2\n");
     
     for (int i = thread_idx; i < edge_count; i += thread_count){
         int source = edge_index[2 * i];
@@ -49,6 +48,7 @@ __global__ void adj_vec_kernel(
         adj_vec[target * max_adj_per_node + target_len] = source;
     }
 
+
 }
 
 __global__ void breadth_first_sort_kernel(
@@ -58,10 +58,10 @@ __global__ void breadth_first_sort_kernel(
         int * adj_vec,
         int * adj_vec_len,
         int * parent_index,
-        int root,
         int batch_size,
         int vertex_count,
-        int max_adj_per_node){
+        int max_adj_per_node,
+        int root){
 
     const int batch_idx     = blockIdx.x;
     const int thread_idx    = threadIdx.x;
@@ -80,23 +80,23 @@ __global__ void breadth_first_sort_kernel(
     __shared__ int sorted_len;
     if (thread_idx == 0) {
         sorted_len = 1;
-        parent_index[0] = root;
-        sorted_index[0] = root;
+        parent_index[root] = root;
+        sorted_index[0] = root+1;
         sorted_parent_index[0] = root;
     }
     __syncthreads();
 
     int i = thread_idx;
     while (i < vertex_count){
-        if ((sorted_index[i] > 0) || (i == 0)){
+        if ((sorted_index[i] > 0)){
             int child_index = 0;
             int par         = parent_index[i];
-            int cur         = sorted_index[i];
+            int cur         = sorted_index[i]-1;
             for (int j = 0; j < adj_vec_len[cur]; j++){
                 int child = adj_vec[cur * max_adj_per_node + j];
                 if (child != par){
                     int pos = atomicAdd(&(sorted_len), 1);
-                    sorted_index[pos]        = child;
+                    sorted_index[pos]        = child+1;
                     parent_index[pos]        = cur;
                     sorted_parent_index[pos] = i;
                     sorted_child_index[i * max_adj_per_node + child_index] = pos;
@@ -141,7 +141,7 @@ bfs_forward(
 
     breadth_first_sort_kernel <<< grid_dims, block_dims, 1, stream >>>(
             sorted_index, sorted_parent, sorted_child, adj_vec, adj_vec_len, parent_index,
-            root, batch_size, vertex_count, max_adj_per_node);
+            batch_size, vertex_count, max_adj_per_node, root);
 
     cudaDeviceSynchronize();
     cudaError_t cudaStatus = cudaGetLastError();
@@ -149,6 +149,5 @@ bfs_forward(
         fprintf(stderr, "CUDA kernel launch failed: %s\n", cudaGetErrorString(cudaStatus));
         // 可能需要处理错误，例如退出程序
     }
-
     return std::make_tuple(sorted_index_tensor, sorted_parent_tensor, sorted_child_tensor);
 }

@@ -129,7 +129,7 @@ def load_data(dataset, config):
 
     config.defrost()
     config.DATA.CHANNELS = image.shape[2]
-    config.MODEL.NUM_CLASSES = len(np.unique(label)) - 1
+    config.MODEL.NUM_CLASSES = len(np.unique(label))
     config.freeze()
     
     image = image.astype(np.float32)
@@ -174,9 +174,11 @@ def sample_gt(gt, train_size, mode='random'):
                 split_size = 15
             else:
                 split_size = train_size
+            if count_c == 15:
+                split_size = 5
             indices = np.nonzero(gt == c)
             X = np.array(list(zip(*indices))) 
-            train_indices, test_indices = train_test_split(X, train_size=split_size, stratify=None)
+            train_indices, test_indices = train_test_split(X, train_size=split_size, random_state=42, stratify=None)
             train_gt[tuple(zip(*train_indices))] = gt[tuple(zip(*train_indices))]
             test_gt[tuple(zip(*test_indices))] = gt[tuple(zip(*test_indices))]
     elif mode == 'disjoint':

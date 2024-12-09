@@ -47,10 +47,11 @@ class Spa_Attention(CrossAttention):
         K = self.k_linear(key).view(batch_size, -1, self.num_heads, self.head_dim).transpose(1, 2)
         V = self.v_linear(value).view(batch_size, -1, self.num_heads, self.head_dim).transpose(1, 2)
 
+
         attn_scores = torch.matmul(Q, K.transpose(-2, -1)) / (self.head_dim ** 0.5)
         attn_weights = F.sigmoid(attn_scores)
 
-        attn_output = V * attn_weights.expand(-1,-1,self.head_dim,-1)
+        attn_output = V * attn_weights.expand(-1,-1,self.head_dim,-1).permute(0,1,3,2)
         attn_output = attn_output.transpose(1, 2).contiguous().view(batch_size, -1, self.embed_dim)
 
         output = self.out_linear(attn_output) # B,L,C
@@ -72,7 +73,7 @@ class Spe_Attention(nn.Module):
 
     def forward(self, x):
         x_tran = x.permute(0, 2, 1) # B,C,L
-        x_cat = torch.cat((self.maxpool(x_tran), self.avgpool(x_tran))) # B,C,2
+        x_cat = torch.cat([self.maxpool(x_tran), self.avgpool(x_tran)], dim=2) # B,C,2
         x_cat = self.conv1d(x_cat).permute(0, 2, 1) # B,1,C
         q = self.proj(x_cat).expand(-1, self.seq_len, -1) # B,L,C
 

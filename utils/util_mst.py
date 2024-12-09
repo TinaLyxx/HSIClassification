@@ -6,12 +6,12 @@ from torch.autograd import Function
 from torch.autograd.function import once_differentiable
 from einops import rearrange
 
-import tree_generate
+from tree_generate import _C
 
 class _MST(Function):
     @staticmethod
     def forward(ctx, edge_index, edge_weight, vertex_index):
-        edge_out = tree_generate.mst_forward(edge_index, edge_weight, vertex_index)
+        edge_out = _C.mst_forward(edge_index, edge_weight, vertex_index)
         return edge_out
 
     @staticmethod

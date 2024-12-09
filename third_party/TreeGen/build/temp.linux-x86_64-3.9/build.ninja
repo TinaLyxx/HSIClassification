@@ -1,0 +1,36 @@
+ninja_required_version = 1.3
+cxx = c++
+nvcc = /cvmfs/soft.computecanada.ca/easybuild/software/2020/Core/cudacore/11.7.0/bin/nvcc
+
+cflags = -Wno-unused-result -Wsign-compare -DNDEBUG -g -fwrapv -O3 -Wall -O2 -ftree-vectorize -march=core-avx2 -fno-math-errno -fPIC -O2 -ftree-vectorize -march=core-avx2 -fno-math-errno -fPIC -fPIC -DWITH_CUDA -I/project/6079336/y369liu/HSI/HSIClassification/third_party/TreeGen/tree_generate/csrc -I/localscratch/y369liu.49668637.0/env/lib/python3.9/site-packages/torch/include -I/localscratch/y369liu.49668637.0/env/lib/python3.9/site-packages/torch/include/torch/csrc/api/include -I/localscratch/y369liu.49668637.0/env/lib/python3.9/site-packages/torch/include/TH -I/localscratch/y369liu.49668637.0/env/lib/python3.9/site-packages/torch/include/THC -I/cvmfs/soft.computecanada.ca/easybuild/software/2020/Core/cudacore/11.7.0/include -I/localscratch/y369liu.49668637.0/env/include -I/cvmfs/soft.computecanada.ca/easybuild/software/2020/avx2/Core/python/3.9.6/include/python3.9 -c
+post_cflags = -O3 -DTORCH_API_INCLUDE_EXTENSION_H '-DPYBIND11_COMPILER_TYPE="_gcc"' '-DPYBIND11_STDLIB="_libstdcpp"' '-DPYBIND11_BUILD_ABI="_cxxabi1011"' -DTORCH_EXTENSION_NAME=_C -D_GLIBCXX_USE_CXX11_ABI=0 -std=c++14
+cuda_cflags = -DWITH_CUDA -I/project/6079336/y369liu/HSI/HSIClassification/third_party/TreeGen/tree_generate/csrc -I/localscratch/y369liu.49668637.0/env/lib/python3.9/site-packages/torch/include -I/localscratch/y369liu.49668637.0/env/lib/python3.9/site-packages/torch/include/torch/csrc/api/include -I/localscratch/y369liu.49668637.0/env/lib/python3.9/site-packages/torch/include/TH -I/localscratch/y369liu.49668637.0/env/lib/python3.9/site-packages/torch/include/THC -I/cvmfs/soft.computecanada.ca/easybuild/software/2020/Core/cudacore/11.7.0/include -I/localscratch/y369liu.49668637.0/env/include -I/cvmfs/soft.computecanada.ca/easybuild/software/2020/avx2/Core/python/3.9.6/include/python3.9 -c
+cuda_post_cflags = -D__CUDA_NO_HALF_OPERATORS__ -D__CUDA_NO_HALF_CONVERSIONS__ -D__CUDA_NO_BFLOAT16_CONVERSIONS__ -D__CUDA_NO_HALF2_OPERATORS__ --expt-relaxed-constexpr --compiler-options ''"'"'-fPIC'"'"'' -O3 -DCUDA_HAS_FP16=1 -D__CUDA_NO_HALF_OPERATORS__ -D__CUDA_NO_HALF_CONVERSIONS__ -D__CUDA_NO_HALF2_OPERATORS__ -DTORCH_API_INCLUDE_EXTENSION_H '-DPYBIND11_COMPILER_TYPE="_gcc"' '-DPYBIND11_STDLIB="_libstdcpp"' '-DPYBIND11_BUILD_ABI="_cxxabi1011"' -DTORCH_EXTENSION_NAME=_C -D_GLIBCXX_USE_CXX11_ABI=0 -gencode=arch=compute_70,code=compute_70 -gencode=arch=compute_70,code=sm_70 -std=c++14
+cuda_dlink_post_cflags = 
+ldflags = 
+
+rule compile
+  command = $cxx -MMD -MF $out.d $cflags -c $in -o $out $post_cflags
+  depfile = $out.d
+  deps = gcc
+
+rule cuda_compile
+  depfile = $out.d
+  deps = gcc
+  command = $nvcc  $cuda_cflags -c $in -o $out $cuda_post_cflags
+
+
+
+
+
+build /project/6079336/y369liu/HSI/HSIClassification/third_party/TreeGen/build/temp.linux-x86_64-3.9/project/6079336/y369liu/HSI/HSIClassification/third_party/TreeGen/tree_generate/csrc/bfs.o: cuda_compile /project/6079336/y369liu/HSI/HSIClassification/third_party/TreeGen/tree_generate/csrc/bfs.cu
+build /project/6079336/y369liu/HSI/HSIClassification/third_party/TreeGen/build/temp.linux-x86_64-3.9/project/6079336/y369liu/HSI/HSIClassification/third_party/TreeGen/tree_generate/csrc/boruvka.o: cuda_compile /project/6079336/y369liu/HSI/HSIClassification/third_party/TreeGen/tree_generate/csrc/boruvka.cu
+build /project/6079336/y369liu/HSI/HSIClassification/third_party/TreeGen/build/temp.linux-x86_64-3.9/project/6079336/y369liu/HSI/HSIClassification/third_party/TreeGen/tree_generate/csrc/mst.o: cuda_compile /project/6079336/y369liu/HSI/HSIClassification/third_party/TreeGen/tree_generate/csrc/mst.cu
+build /project/6079336/y369liu/HSI/HSIClassification/third_party/TreeGen/build/temp.linux-x86_64-3.9/project/6079336/y369liu/HSI/HSIClassification/third_party/TreeGen/tree_generate/csrc/vision.o: compile /project/6079336/y369liu/HSI/HSIClassification/third_party/TreeGen/tree_generate/csrc/vision.cpp
+
+
+
+
+
+
+

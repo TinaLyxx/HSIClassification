@@ -124,12 +124,26 @@ def parse_option():
                         default=0,
                         # required=False,
                         help='local rank for DistributedDataParallel')
+    parser.add_argument(
+        '--train-size',
+        type=int,
+        help='the number of samples to train'
+    )
+    parser.add_argument(
+        '--test-size',
+        type=int,
+        help='the number of samples to test'
+    )
+    parser.add_argument(
+        '--num-classes',
+        type=int,
+        help='the class number'
+    )
 
     args, unparsed = parser.parse_known_args()
     config = get_config(args)
 
     return args, config
-
 
 
 
@@ -168,7 +182,7 @@ def main(config):
     optimizer = build_optimizer(config, model)
 
     model = torch.nn.parallel.DistributedDataParallel(
-        model, broadcast_buffers=False)
+        model, broadcast_buffers=False, find_unused_parameters=True)
     
     model_without_ddp = model.module
 
@@ -229,8 +243,18 @@ def main(config):
     if config.EVAL_MODE:
         return
     
+    # if dist.get_rank() == 0:
+    #     cnt = 1
+    #     for name, param in model.named_parameters():
+    #         print(f"{cnt}.Parameter name: {name}")
+    #         print(f"Shape: {param.shape}")
+    #         print(f"Requires gradient: {param.requires_grad}")
+    #         print("-" * 50)
+    #         cnt += 1
+    
     # train
     logger.info("Start training")
+    logger.info(f"Train on {len(dataset_train)} train images")
     start_time = time.time()
     for epoch in range(config.TRAIN.START_EPOCH, config.TRAIN.EPOCHS):
         data_loader_train.sampler.set_epoch(epoch)
@@ -273,8 +297,9 @@ def main(config):
     total_time_str = str(datetime.timedelta(seconds=int(total_time)))
     logger.info('Training time {}'.format(total_time_str))
 
-    # test
+    # Test
     logger.info("Start testing")
+    
     best_path = os.path.join(config.OUTPUT, 'ckpt_epoch_best.pth')
 
     config.defrost()
@@ -282,29 +307,32 @@ def main(config):
     config.EVAL_MODE = True
     config.freeze()
 
-    max_accuracy = load_checkpoint(config, model_without_ddp, optimizer,
-                                       lr_scheduler, logger)
-    logger.info(f'Load the best model, max accuracy is {max_accuracy:.2f}%')
+    if dist.get_rank() == 0:
+        max_accuracy = load_checkpoint(config, model_without_ddp, optimizer,
+                                        lr_scheduler, logger)
+        logger.info(f'Load the best model, max accuracy is {max_accuracy:.2f}%')
 
-    probs_map, gt, palette, label_values = test(model, config)
-    num_cls = int(probs_map.shape[2])
+        probs_map, gt, palette, label_values = test(model, config)
+        print(f"Get test results!!")
+        # print(f"probs_map shape {probs_map.shape}")
+        num_cls = int(probs_map.shape[2])
 
-    prob_map = np.argmax(probs_map, axis=-1)
-    results = metrics(prob_map, test_label, ignored_labels=config.DATA.IGNOR_LABELS, n_classes=num_cls)
+        prob_map = np.argmax(probs_map, axis=-1)
+        print(prob_map)
+        results = metrics(prob_map, test_label, ignored_labels=config.DATA.IGNOR_LABELS, n_classes=num_cls)
 
-    mask = np.zeros(gt.shape, dtype='bool')
-    for l in config.DATA.IGNOR_LABELS:
-        mask[gt == l] = True
-    
-    color_pred_map = convert_to_color(prob_map, palette)
-    prob_map[mask] = 0
-    mask_color_pred_map = convert_to_color(prob_map, palette)
+        mask = np.zeros(gt.shape, dtype='bool')
+        for l in config.DATA.IGNOR_LABELS:
+            mask[gt == l] = True
+        
+        color_pred_map = convert_to_color(prob_map, palette)
+        prob_map[mask] = 0
+        mask_color_pred_map = convert_to_color(prob_map, palette)
 
-    file_name = config.DATA.DATASET + '.jpg'
-    save_predictions(mask_color_pred_map, color_pred_map, caption=file_name)
+        file_name = config.DATA.DATASET + '.png'
+        save_predictions(mask_color_pred_map, color_pred_map, caption=file_name)
 
-    show_results(results, label_values=label_values, agregated=False)
-
+        show_results(results, label_values=label_values, agregated=False)
 
         
 
@@ -332,6 +360,7 @@ def train_one_epoch(config,
         samples = samples.cuda(non_blocking=True)
         targets = targets.cuda(non_blocking=True)
 
+
         outputs = model(samples)
         loss = criterion(outputs, targets)
         optimizer.zero_grad()
@@ -346,7 +375,7 @@ def train_one_epoch(config,
 
         loss_meter.update(loss.item(), targets.size(0))
         if grad_norm is not None:
-            norm_meter.update(grad_norm.item())
+            norm_meter.update(grad_norm)
         batch_time.update(time.time() - end)
         model_time.update(time.time() - iter_begin_time)
         end = time.time()
@@ -430,7 +459,7 @@ def test(model, config):
     n_classes = config.MODEL.NUM_CLASSES
 
     model.eval()
-    img, label, palette, label_values = load_data(dataset)
+    img, label, palette, label_values = load_data(dataset,config)
 
     probs_map = np.zeros(img.shape[:2] + (n_classes,))
     kwargs = {
@@ -466,14 +495,13 @@ def test(model, config):
             output = output.numpy()
         else:
             output = np.transpose(output.numpy(), (0, 2, 3, 1))
-        
         for (x, y, w, h), out in zip(indices, output):
             if center_pixel:
                 probs_map[x + w // 2, y + h // 2] += out
             else:
                 probs_map[x: x + w, y: y + h] += out
         
-        return probs_map, label, palette, label_values
+    return probs_map, label, palette, label_values
 
 
 
@@ -536,6 +564,9 @@ if __name__ == '__main__':
 
     for run in range(config.N_RUNS):
         main(config)
+    
+    
+
 
     
     

@@ -46,7 +46,7 @@ def get_2d_sincos_pos_embed(embed_dim, grid_size, cls_token=False):
     grid = np.meshgrid(grid_w, grid_h)  # here w goes first
     grid = np.stack(grid, axis=0)
 
-    grid = grid.reshape([2, 1, grid_size, grid_size])
+    grid = grid.reshape(2, -1)
     pos_embed = get_2d_sincos_pos_embed_from_grid(embed_dim, grid)
     if cls_token:
         pos_embed = np.concatenate([pos_embed, np.zeros([1, embed_dim])], axis=0)
@@ -75,6 +75,7 @@ def get_1d_sincos_pos_embed_from_grid(embed_dim, pos):
     omega = 1. / 10000**omega  # (D/2,)
 
       # (M,)
+    
     out = np.einsum('m,d->md', pos, omega)  # (M, D/2), outer product
 
     emb_sin = np.sin(out) # (M, D/2)
